@@ -1,0 +1,28 @@
+# 肝脏 3D 分割项目依赖 (Python 3.10)
+# 说明：PyTorch CUDA 安装见 README，按官网选版本（https://pytorch.org/get-started/locally/）
+# 本文件不写死 CUDA 安装命令，仅给出各依赖下限版本，避免锁死。
+
+# 深度学习
+torch>=2.0.0          # PyTorch，按官网选择匹配 CUDA 的安装命令
+einops>=0.7.0         # 张量维度重排，便于 3D 网络中的形状变换
+# 医学影像核心
+monai>=1.3.0          # 医学影像深度学习框架，提供 3D U-Net、变换、指标等
+nibabel>=5.0.0        # 读写 NIfTI (.nii.gz) 文件
+SimpleITK>=2.2.0      # 读写 DICOM/医学影像，补充 ITK 系后处理能力
+# 数值与科学计算
+numpy>=1.23.0
+scipy>=1.10.0
+scikit-image>=0.21.0  # marching cubes，用于 STL 导出
+scikit-learn>=1.2.0   # 数据划分、评估指标等
+# 可视化与数据表
+matplotlib>=3.7.0
+pandas>=1.5.0         # 训练日志、指标汇总等表格读写
+# STL 三维网格
+trimesh>=4.0.0
+# 工具
+PyYAML>=6.0           # 读取 YAML 配置
+tqdm>=4.65.0          # 进度条
+tensorboard>=2.13.0   # 训练日志（可选）
+# 桌面前端 GUI（可选；不装 GUI 可忽略此项）
+PySide6>=6.5.0        # Liver Tumor Segmentation Toolkit 桌面界面
+pyinstaller>=6.0      # GUI 打包工具（仅打包时需要，见 scripts/build_gui.*）

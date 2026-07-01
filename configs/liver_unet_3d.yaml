@@ -1,0 +1,77 @@
+# ====================================================================
+# 肝脏/肝肿瘤 3D 分割统一三分类配置
+# 对应数据集：Task03_Liver（来自 Medical Segmentation Decathlon）
+# 用途：3D U-Net 在肝脏与肝肿瘤分割任务上的训练与推理统一配置
+# 数据类别：背景(0) / 肝脏(1) / 肿瘤(2)，共三类（num_classes=3）
+# 免责声明：本配置仅供科研与教学使用，严禁用于任何临床诊断、
+#          治疗决策或医疗场景。作者不对任何因使用本配置造成
+#          的后果承担责任。
+# ====================================================================
+
+# ----- 数据基本设置 -----
+data:
+  # 训练划分清单，JSON 文件内记录用于训练的病例 ID / 路径列表
+  train_json: data/splits/train.json
+  # 验证划分清单，用于每个验证周期评估模型性能
+  val_json: data/splits/val.json
+  # 任务模式：
+  #   multiclass   : 背景(0)/肝脏(1)/肿瘤(2) 三分类，out_channels=3
+  #   binary_liver : 背景(0)/肝脏(1) 二分类，label>0→1，out_channels=2
+  # 命令行 --task_mode 优先于此字段
+  task_mode: multiclass
+  # 分类数：multiclass=3，binary_liver=2（由 task_mode 自动决定，此处仅作记录）
+  num_classes: 3
+
+# ----- 预处理设置 -----
+preprocessing:
+  # 重采样体素间距(mm)，分别为轴位/冠状/矢状方向
+  # 将所有病例重采样到统一分辨率，消除原始采集间距差异
+  spacing: [1.5, 1.5, 2.0]
+  # 3D patch（图像块）大小，训练时随机裁剪，推理时作为滑动窗口块大小
+  # 96x96x96 兼顾显存与上下文范围
+  roi_size: [96, 96, 96]
+  # CT HU 值窗裁剪范围（肝脏软组织窗）
+  # 低于 -200 或高于 250 的体素会被截断，聚焦肝脏软组织区域
+  ct_window: [-200, 250]
+
+# ----- 模型设置（MONAI 的 UNet）-----
+model:
+  # 模型名称：使用 MONAI 提供的标准 3D UNet 实现
+  name: "monai_unet"
+  # 空间维度：3 表示 3D 卷积
+  spatial_dims: 3
+  # 输入通道数：CT 为单通道灰度图像
+  in_channels: 1
+  # 输出通道数：等于 num_classes（背景/肝脏/肿瘤）
+  out_channels: 3
+  # 各层特征通道数，由浅入深逐层翻倍
+  channels: [16, 32, 64, 128, 256]
+  # 下采样步长，长度比 channels 少 1
+  # 即每两个 channels 之间对应一次下采样，共 4 次下采样
+  strides: [2, 2, 2, 2]
+  # 残差单元数：每个卷积块内堆叠的残差单元数量，增大可增强表达能力
+  num_res_units: 2
+
+# ----- 训练设置 -----
+training:
+  # 总训练轮数（epoch）
+  max_epochs: 300
+  # 每个迭代处理的样本数；3D 体积较大，通常设为 1
+  batch_size: 1
+  # AdamW 优化器初始学习率
+  lr: 0.0001
+  # AdamW 权重衰减，抑制过拟合
+  weight_decay: 0.00001
+  # 每隔几个 epoch 执行一次验证评估
+  val_interval: 2
+  # 数据加载工作线程数；在 Windows 上若出现多进程报错可调为 0
+  num_workers: 4
+  # 随机种子，用于实验可复现
+  seed: 42
+
+# ----- 推理设置 -----
+inference:
+  # 滑动窗口推理时的 patch 大小，通常与训练 roi_size 一致
+  roi_size: [96, 96, 96]
+  # 滑动窗口并行批大小，越大占显存越多但速度更快
+  sw_batch_size: 4

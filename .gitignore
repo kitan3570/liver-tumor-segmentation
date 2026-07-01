@@ -1,0 +1,57 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+env/
+
+# ===== 数据目录（真实 CT 数据不入库） =====
+data/
+*/data/
+Task03_Liver/
+*/Task03_Liver/
+
+# ===== 模型权重与大文件 =====
+*.pt
+*.pth
+*.ckpt
+*.nii.gz
+*.nii
+
+# ===== outputs 中间产物（保留 .gitkeep 占位） =====
+outputs/models/*
+outputs/predictions/*
+outputs/metrics/*
+outputs/figures/*
+outputs/stl/*
+outputs/splits/
+outputs/smoke_outputs/
+outputs/test_opt/
+outputs/benchmark/
+outputs/report_materials/
+outputs/.tmp/
+outputs/*.csv
+outputs/*.txt
+!outputs/**/.gitkeep
+
+# ===== 报告材料收集脚本（本地用，不入库） =====
+scripts/collect_report_materials.py
+
+# ===== 临时文件 =====
+.git/COMMIT_BENCH_MSG.txt
+*.tmp
+
+# ===== IDE / 系统 =====
+.idea/
+.vscode/
+.trae/
+.DS_Store
+*.log
+user_path_backup_*.txt
+
+# ===== Jupyter =====
+.ipynb_checkpoints/

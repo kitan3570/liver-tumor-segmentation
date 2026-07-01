@@ -1,0 +1,34 @@
+# Conda 环境文件：肝脏 3D 分割项目 (Python 3.10)
+# 用途：一键创建名为 liver-seg 的 conda 环境，再通过 pip 安装项目依赖。
+# 使用方式： conda env create -f environment.yml
+# 注意：PyTorch 的 CUDA 安装命令需根据机器显卡与驱动自行选择，
+#       请参考 https://pytorch.org/get-started/locally/ 选择对应版本。
+#       本文件中 torch 不指定版本/CUDA 后缀，默认安装 CPU 版或由 pip 解析，
+#       如需 GPU 训练请在创建环境后按官网命令单独安装 torch。
+name: liver-seg
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      # PyTorch：请根据官方安装页面选择对应 CUDA 版本的安装命令
+      # 参考 https://pytorch.org/get-started/locally/
+      - torch
+      - monai
+      - nibabel
+      - SimpleITK
+      - scikit-image
+      - matplotlib
+      - pandas
+      - numpy
+      - scipy
+      - scikit-learn
+      - tqdm
+      - tensorboard
+      - pyyaml
+      - einops
+      - trimesh
+      # 桌面前端 GUI（可选；不使用 GUI 可注释掉）
+      - PySide6

@@ -1,0 +1,95 @@
+# ==============================================================================
+# 肝脏 3D 分割配置 —— 阶段二（三分类：背景 / 肝脏 / 肿瘤）
+# ==============================================================================
+# 配置用途：基于 MONAI 对 Medical Segmentation Decathlon Task03_Liver 数据集
+#           进行 3D 语义分割；本文件为【阶段二 / 三分类】设置。
+# 对应阶段：phase2（三分类）。保留原始标签 {0=背景, 1=肝脏, 2=肿瘤}，
+#           即标签映射规则为保持 0/1/2 不变，让网络同时区分肝脏与肝肿瘤。
+#           适合在阶段一跑通后，进一步挑战小目标(肿瘤)分割任务。
+# 是否需 GPU：标准科研设置需要 CUDA GPU（device: cuda）。若无 GPU，可将
+#           device 改为 cpu，但 3D 体素训练会非常慢，建议仅用于自检(smoke_test)。
+# 免责声明：本项目仅用于科研学习与教学展示，不用于临床诊断或治疗；
+#           不使用真实患者隐私数据；输出模型与 STL 仅供学习，不得用于医疗决策。
+# ==============================================================================
+
+# ===== 基本信息 =====
+# 顶层字段描述任务类型、类别与运行环境，src/utils.py 的 load_config 会先读取它们。
+phase: 2                # 1=二分类, 2=三分类；本文件为三分类阶段
+num_classes: 3          # 类别数：phase1=2, phase2=3；决定模型输出通道与损失类别数
+classes: [background, liver, tumor]   # 类别名列表：phase2 含背景、肝脏、肿瘤三类
+seed: 42                # 随机种子，固定后可让数据划分/训练结果可复现
+device: cuda            # 标准设置需 GPU；CPU 时改为 cpu（仅建议自检用）
+
+# ===== 数据 =====
+# 数据路径与预处理参数。Task03_Liver 解压后默认目录结构如下，
+# data_root 指向数据集根目录，其余为相对其下的子目录名。
+data:
+  data_root: ./data/Task03_Liver   # 数据集根目录（用户自行下载，不入库）
+  images_tr_dir: imagesTr          # 训练图像目录（.nii.gz）
+  labels_tr_dir: labelsTr          # 训练标签目录
+  images_ts_dir: imagesTs          # 测试图像目录
+  labels_ts_dir: labelsTs          # 测试标签目录
+  splits_dir: outputs/splits       # 划分清单(train/val/test.json)输出目录
+  spacing: [1.0, 1.0, 1.0]        # 重采样 spacing（mm）：统一体素分辨率，让不同扫描仪数据可比
+  intensity_clip: [-100, 400]      # CT HU 裁剪范围（肝脏常用软组织窗），超出范围截断
+  intensity_scale: [0.0, 1.0]      # 裁剪后再线性归一化到 [0,1]，便于网络学习
+
+# ===== 训练 =====
+# 训练循环超参数，沿用 MONAI 官方教程标准科研设置。
+train:
+  roi_size: [96, 96, 96]   # 随机裁剪块大小（3D patch）；96³ 是 MONAI 教程标准，兼顾显存与上下文
+  batch_size: 2            # 每批样本数；3D 体素显存占用大，故设为较小的 2
+  num_workers: 4           # 数据加载并行进程数，加速 IO；Windows 下若报错可调小为 0
+  cache_rate: 1.0          # CacheDataset 缓存比例：1.0=全部样本预处理后缓存到内存，加速但吃内存
+  max_epochs: 300          # 总训练轮数（epoch），MONAI 教程标准值
+  val_interval: 5          # 每隔几个 epoch 做一次验证并记录指标
+  amp: true                # 混合精度(AMP)训练，用 float16 加速、降低显存，需 GPU 支持
+
+# ===== 模型 (MONAI 3D UNet) =====
+# 使用 MONAI 的 3D U-Net：编码器逐层下采样提取特征，解码器逐层上采样恢复分辨率。
+model:
+  in_channels: 1          # 输入通道数：单模态 CT 为 1
+  out_channels: 3         # 输出通道数 = num_classes；phase1=2，phase2=3
+  channels: [16, 32, 64, 128, 256]   # 各分辨率层的特征通道数（由浅到深）
+  strides: [2, 2, 2, 2]   # 每次下采样的步长，长度比 channels 少 1，共 4 次下采样
+  num_res_units: 2        # 每个卷积块的残差单元数，提升梯度流动与表达能力
+  norm: BATCH             # 归一化层：BATCH（批归一化），3D 小 batch 下也可考虑 INSTANCE
+
+# ===== 损失 =====
+# DiceCE = Dice 损失 + 交叉熵(CE) 损失的加权和，兼顾区域重叠与逐像素分类。
+# 三分类下 squared_pred 对小目标肿瘤更敏感，有助于提升肿瘤召回。
+loss:
+  name: DiceCE            # 可选: Dice / DiceCE；多类分割常用 DiceCE
+  include_background: false   # Dice 是否计入背景类；false 表示只对前景(肝脏/肿瘤)计算 Dice
+  softmax: true           # 多类分割需对网络输出做 softmax；二分类/三分类都设 true
+  to_onehot_y: true       # 将标签转为 one-hot 再计算，多类分割必需
+  squared_pred: true      # 平方预测项，对小目标(如肿瘤)更敏感，提升收敛
+  lambda_dice: 1.0        # Dice 损失权重
+  lambda_ce: 1.0          # 交叉熵损失权重
+
+# ===== 优化器与调度器 =====
+# 优化器更新模型权重，调度器随训练进度调整学习率。
+optimizer:
+  name: Adam              # Adam 优化器，自适应学习率，医学分割常用
+  lr: 1.0e-4              # 初始学习率 1e-4，MONAI 教程标准值
+  weight_decay: 1.0e-5    # 权重衰减(正则化)，防止过拟合
+scheduler:
+  name: CosineAnnealingLR # 余弦退火学习率调度
+  T_max: 300              # 余弦周期，通常设为 max_epochs，使学习率在训练末尾降到最低
+
+# ===== 推理 (滑动窗口) =====
+# 整张 CT 体积远大于训练 patch，推理时用滑动窗口分块预测再拼接。
+infer:
+  roi_size: [96, 96, 96]  # 滑动窗口块大小，与训练 roi_size 保持一致
+  sw_batch_size: 1        # 滑动窗口并发块数；显存充裕时可调大以加速
+  overlap: 0.25           # 相邻窗口重叠比例(25%)，重叠区加权平均减少拼接伪影
+  keep_largest_cc: true   # 后处理：保留最大连通域，去除零散小假阳性
+
+# ===== 输出路径 =====
+# 各类产物输出目录，均位于 outputs/ 下，已在 Task 1 创建并放 .gitkeep 占位。
+output:
+  models_dir: outputs/models          # 模型权重(best/last .pt)保存目录
+  predictions_dir: outputs/predictions   # 推理预测 NIfTI 保存目录
+  metrics_dir: outputs/metrics        # 评价指标(JSON/CSV)保存目录
+  figures_dir: outputs/figures        # 可视化切片对比图(PNG)保存目录
+  stl_dir: outputs/stl               # STL 三维网格导出目录
